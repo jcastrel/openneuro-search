@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Full-Text Search for OpenNeuro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: OpenNeuro-style search page. Dark aqua header bar; filter sidebar on the left, results on the right; stacks to one column on phones. Single light theme, as on openneuro.org. */
+:root {
+  --aqua-dark: #204e5a;   /* OpenNeuro primary */
+  --aqua-mid: #196583;    /* OpenNeuro secondary */
+  --aqua-light: #37bcd2;  /* OpenNeuro light aqua */
+  --cloud: #f8f8f8;
+  --line: #dfdfdf;
+  --ink: #333333;
+  --muted: #6b7275;
+  --white: #ffffff;
+  --mark: #fff1a8;
+  /* OpenNeuro modality colors */
+  --mri: #4f3382; --eeg: #861f37; --pet: #0069c0; --ieeg: #126d3e; --meg: #9c3900; --nirs: #a61528; --other: #5f6b6e;
+  --font-body: "Open Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--cloud); color: var(--ink); font: 15px/1.55 var(--font-body); }
+a { color: var(--aqua-mid); }
+a:hover { color: var(--aqua-dark); }
+:focus-visible { outline: 3px solid var(--aqua-light); outline-offset: 2px; }
+.bar { background: var(--aqua-dark); color: var(--white); }
+.bar .in { max-width: 1240px; margin: 0 auto; padding: 18px 20px 20px; display: grid; gap: 4px; }
+h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
+.bar p { margin: 0; color: #cfe3e8; font-size: 14px; max-width: 80ch; }
+.bar .unofficial { color: var(--white); font-weight: 600; }
+.searchband { background: var(--white); border-bottom: 1px solid var(--line); }
+.searchband .in { max-width: 1240px; margin: 0 auto; padding: 18px 20px; display: grid; gap: 10px; }
+.searchrow { display: flex; gap: 10px; flex-wrap: wrap; }
+#q { flex: 1 1 340px; font: 17px var(--font-body); padding: 11px 14px; border: 1px solid #b9c3c6; border-radius: 4px; color: var(--ink); background: var(--white); }
+#q:focus { border-color: var(--aqua-light); box-shadow: 0 0 0 3px rgba(55,188,210,.25); outline: none; }
+.btn { font: 600 14px var(--font-body); padding: 10px 18px; border-radius: 4px; border: 1px solid var(--aqua-dark); background: var(--aqua-dark); color: var(--white); cursor: pointer; }
+.btn:hover { background: var(--aqua-mid); border-color: var(--aqua-mid); }
+.btn.ghost { background: var(--white); color: var(--aqua-dark); }
+.btn.ghost:hover { background: #eef6f8; }
+.help { margin: 0; color: var(--muted); font-size: 13px; }
+code, .ex { font-family: var(--font-mono); font-size: 12.5px; }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ex { background: #eef6f8; border: 1px solid #cfe3e8; color: var(--aqua-dark); padding: 2px 9px; border-radius: 99px; cursor: pointer; }
+.ex:hover { border-color: var(--aqua-light); }
+.main { max-width: 1240px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 270px 1fr; gap: 24px; align-items: start; }
+aside { background: var(--white); border: 1px solid var(--line); border-radius: 4px; padding: 16px; display: grid; gap: 18px; position: sticky; top: 12px; }
+aside h2 { margin: 0 0 8px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--aqua-dark); }
+.mods { display: flex; flex-wrap: wrap; gap: 6px; }
+.mod { --c: var(--other); font: 600 12.5px var(--font-body); padding: 3px 10px; border-radius: 99px; border: 1px solid var(--c); background: var(--white); color: var(--c); cursor: pointer; }
+.mod[aria-pressed="true"] { background: var(--c); color: var(--white); }
+.mod .n { font-weight: 400; opacity: .8; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.field { display: grid; gap: 6px; font-size: 14px; }
+.pair { display: flex; gap: 8px; align-items: center; }
+.field input, .field select { font: 14px var(--font-body); padding: 6px 8px; border: 1px solid #b9c3c6; border-radius: 4px; background: var(--white); color: var(--ink); width: 100%; }
+.pair input { width: 76px; }
+.note { font-size: 12px; color: var(--muted); margin: 0; }
+.summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+#count { font-size: 15px; }
+#count b { color: var(--aqua-dark); font-variant-numeric: tabular-nums; }
+#status { color: var(--muted); font-size: 13px; }
+.results { display: grid; gap: 12px; }
+.card { background: var(--white); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; display: grid; gap: 8px; }
+.card:hover { border-color: #c4cfd2; }
+.top { display: grid; gap: 2px; }
+.title { font-size: 17px; font-weight: 600; color: var(--aqua-mid); text-decoration: none; }
+.title:hover { text-decoration: underline; }
+.dsid { font: 13px var(--font-mono); color: var(--muted); }
+.meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 2px 16px; font-variant-numeric: tabular-nums; }
+.meta b { color: var(--ink); font-weight: 600; }
+.tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { --c: var(--other); font: 600 11.5px var(--font-body); padding: 1px 8px; border-radius: 99px; background: var(--c); color: var(--white); }
+.tag { font: 12px var(--font-mono); padding: 1px 7px; border-radius: 4px; background: #eef1f2; color: #3d4649; }
+.tag.tracer { background: #e3effa; color: #00447e; font-weight: 600; }
+.hits { display: grid; gap: 5px; font-size: 13.5px; border-top: 1px solid #eee; padding-top: 8px; }
+.hit { display: grid; grid-template-columns: 82px 1fr; gap: 8px; }
+.hit .src { color: var(--muted); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding-top: 2px; }
+.hit .txt { overflow-wrap: anywhere; }
+.hit .txt.mono { font: 12.5px/1.5 var(--font-mono); }
+mark { background: var(--mark); color: inherit; border-radius: 2px; padding: 0 1px; }
+details { font-size: 13.5px; }
+summary { cursor: pointer; color: var(--aqua-mid); font-weight: 600; }
+.detail { display: grid; gap: 12px; margin-top: 10px; }
+.detail h4 { margin: 0 0 4px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+pre { margin: 0; font: 12px/1.5 var(--font-mono); background: var(--cloud); border: 1px solid var(--line); border-radius: 4px; padding: 10px; max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.more { justify-self: center; margin-top: 4px; }
+footer { max-width: 1240px; margin: 0 auto; padding: 8px 20px 48px; color: var(--muted); font-size: 13px; display: grid; gap: 6px; }
+footer p { margin: 0; max-width: 90ch; }
+.sr { position: absolute; left: -9999px; }
+@media (max-width: 820px) { .main { grid-template-columns: 1fr; } aside { position: static; } }
+@media (max-width: 480px) { h1 { font-size: 21px; } .hit { grid-template-columns: 1fr; gap: 0; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="bar"><div class="in">
+  <h1>Full-Text Search for OpenNeuro</h1>
+  <p><span class="unofficial">Unofficial community tool, not affiliated with OpenNeuro.</span> Searches READMEs, titles, authors, BIDS file names, tasks, PET tracers, participant variables and phenotype measures for every public dataset. <span id="snap">Loading…</span></p>
+</div></header>
+
+<section class="searchband" aria-label="Search"><div class="in">
+  <form class="searchrow" id="form">
+    <label for="q" class="sr">Search terms</label>
+    <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder='Search everything, e.g. raclopride, bis-11, "delay discounting"'>
+    <button class="btn" type="submit">Search</button>
+    <button class="btn ghost" type="button" id="clear">Clear all</button>
+  </form>
+  <p class="help">Words combine with AND. Use <code>"quotes"</code> for a phrase, <code>-word</code> to exclude, and <code>a|b</code> for either.</p>
+  <div class="examples"><span class="help">Try:</span>
+    <button class="ex" type="button">raclopride</button>
+    <button class="ex" type="button">fallypride|phno|flb</button>
+    <button class="ex" type="button">bdi|"beck depression"</button>
+    <button class="ex" type="button">bis-11|bis11|barratt</button>
+    <button class="ex" type="button">ultimatum</button>
+    <button class="ex" type="button">"delay discounting"|intertemporal</button>
+    <button class="ex" type="button">"reversal learning" -rat</button>
+  </div>
+</div></section>
+
+<div class="main">
+  <aside aria-label="Filters">
+    <div>
+      <h2>Must include data type</h2>
+      <div class="mods" id="mods"></div>
+    </div>
+    <div class="field">
+      <h2>Participant ages</h2>
+      <div class="pair"><label for="agemin" class="sr">Youngest</label><input id="agemin" type="number" min="0" max="120" step="1" placeholder="min"><span>to</span><label for="agemax" class="sr">Oldest</label><input id="agemax" type="number" min="0" max="120" step="1" placeholder="max"><span>years</span></div>
+      <p class="note">Keeps datasets whose age range in participants.tsv overlaps these ages. Datasets without readable ages are hidden while this is set.</p>
+    </div>
+    <div class="field">
+      <h2>Subjects</h2>
+      <label for="minsub">At least</label><input id="minsub" type="number" min="0" value="0">
+    </div>
+    <div class="field">
+      <h2>Sort</h2>
+      <label for="sort" class="sr">Sort results</label>
+      <select id="sort"><option value="rel">Best match</option><option value="new">Newest ID</option><option value="sub">Most subjects</option></select>
+    </div>
+  </aside>
+
+  <section aria-label="Results">
+    <div class="summary">
+      <div id="count" aria-live="polite">Loading datasets…</div>
+      <div class="pair"><span id="status"></span><button class="btn ghost" type="button" id="copy">Copy matching IDs</button></div>
+    </div>
+    <div class="results" id="results"></div>
+    <div style="display:grid"><button class="btn ghost more" type="button" id="more" hidden>Show 50 more</button></div>
+  </section>
+</div>
+
+<footer>
+  <p><b>How this works.</b> The index is built from OpenNeuro's public GitHub mirror (github.com/OpenNeuroDatasets). For each dataset it reads dataset_description.json, the README, participants.tsv and .json, phenotype files (headers and sidecars), one PET sidecar's TracerName, and the full list of file names. No imaging data is downloaded. File names are collapsed across subjects and runs into patterns.</p>
+  <p><b>Limits.</b> The index is rebuilt on a schedule, so datasets published since the date at the top won't appear yet. Ages come from the first age column in participants.tsv, converted to years when the sidecar gives months, weeks or days; ages over 120 with no stated units are left out. Sex counts are skipped when values are numeric codes with no Levels in the sidecar. READMEs are cut off at 20,000 characters and file lists at 250 patterns per dataset. Check the dataset's page on OpenNeuro for its current version.</p>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  const MODS = [["anat","mri"],["func","mri"],["dwi","mri"],["fmap","mri"],["perf","mri"],["mrs","mri"],["pet","pet"],["eeg","eeg"],["meg","meg"],["ieeg","ieeg"],["nirs","nirs"],["beh","other"],["motion","other"],["phenotype","other"]];
+  const COLOR = Object.fromEntries(MODS.map(([m, c]) => [m, `var(--${c})`]));
+  const PAGE = 50;
+  const $ = (id) => document.getElementById(id);
+  let DATA = [], shown = PAGE, lastResults = [];
+  const modOn = new Set();
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // Query syntax: words AND'ed; "phrase"; -exclude; a|b|"c d" OR within one clause.
+  function parse(q) {
+    const toks = [], rx = /(-?)((?:"[^"]*"|[^\s"])+)/g; let m;
+    while ((m = rx.exec(q))) {
+      const alts = (m[2].match(/"[^"]*"|[^|]+/g) || []).map((a) => a.replace(/"/g, "").trim()).filter(Boolean);
+      if (alts.length) toks.push({neg: !!m[1], alts});
+    }
+    const mk = (alts) => new RegExp(alts.map(reEsc).join("|"), "gi");
+    const pos = toks.filter((t) => !t.neg);
+    return {inc: pos.map((t) => mk(t.alts)), exc: toks.filter((t) => t.neg).map((t) => mk(t.alts)),
+            all: pos.length ? mk(pos.flatMap((t) => t.alts)) : null};
+  }
+  const fresh = (re) => new RegExp(re.source, "gi");
+  function countIn(re, s) { if (!s) return 0; re.lastIndex = 0; let n = 0; while (re.exec(s)) { if (++n > 200) break; } return n; }
+  function markHtml(s, re) {
+    if (!re) return esc(s);
+    re = fresh(re); let html = "", last = 0, m;
+    while ((m = re.exec(s))) { if (!m[0]) { re.lastIndex++; continue; } html += esc(s.slice(last, m.index)) + "<mark>" + esc(m[0]) + "</mark>"; last = m.index + m[0].length; }
+    return html + esc(s.slice(last));
+  }
+  function snippet(text, re, len) {
+    re = fresh(re); const m = re.exec(text); if (!m) return null;
+    const a = Math.max(0, m.index - len), b = Math.min(text.length, m.index + m[0].length + len);
+    return markHtml((a > 0 ? "…" : "") + text.slice(a, b).replace(/\s+/g, " ") + (b < text.length ? "…" : ""), re);
+  }
+  const matching = (lines, re) => lines.filter((l) => { const r = fresh(re); return r.test(l); });
+
+  // Every field is searched; weights only affect ranking.
+  const FIELDS = [["_meta", 6], ["_tracer", 6], ["measures", 3], ["_files", 2], ["readme", 1]];
+
+  function run() {
+    const p = parse($("q").value.trim());
+    const minsub = +$("minsub").value || 0;
+    const amin = $("agemin").value === "" ? null : +$("agemin").value;
+    const amax = $("agemax").value === "" ? null : +$("agemax").value;
+    const out = [];
+    outer: for (const d of DATA) {
+      if (d.nsub < minsub) continue;
+      for (const m of modOn) if (!d.mods.includes(m)) continue outer;
+      if (amin !== null || amax !== null) {
+        const a = d.participants && d.participants.age; if (!a) continue;
+        if (amin !== null && a[1] < amin) continue;
+        if (amax !== null && a[0] > amax) continue;
+      }
+      let score = 0;
+      for (const re of p.inc) {
+        let s = 0; for (const [k, w] of FIELDS) s += Math.min(countIn(re, d[k]), 50) * w;
+        if (!s) continue outer; score += s;
+      }
+      for (const re of p.exc) for (const [k] of FIELDS) if (countIn(re, d[k])) continue outer;
+      out.push({d, score});
+    }
+    const sort = $("sort").value;
+    if (sort === "sub") out.sort((a, b) => b.d.nsub - a.d.nsub);
+    else if (sort === "new" || !p.inc.length) out.sort((a, b) => b.d.id.localeCompare(a.d.id));
+    else out.sort((a, b) => b.score - a.score || b.d.id.localeCompare(a.d.id));
+    lastResults = out; shown = PAGE; render(p);
+  }
+
+  function partsMeta(d) {
+    const P = d.participants || {}, bits = [];
+    if (P.age) bits.push(`ages <b>${P.age[0]}–${P.age[1]}</b> (mean ${P.age[2]})`);
+    if (P.sex) bits.push(`<b>${P.sex.F}</b> F / <b>${P.sex.M}</b> M${P.sex.O ? ` / <b>${P.sex.O}</b> other` : ""}`);
+    if (d.pheno && d.pheno.length) bits.push(`<b>${d.pheno.length}</b> phenotype file${d.pheno.length === 1 ? "" : "s"}`);
+    return bits.map((b) => `<span>${b}</span>`).join("");
+  }
+
+  function card(r, p) {
+    const d = r.d, re = p.all;
+    const tracers = [d.tracer ? d.tracer.split("|")[0].trim() : "", ...d.trc].filter((t, i, a) => t && a.indexOf(t) === i);
+    let hits = "";
+    if (re) {
+      const rows = [];
+      if (countIn(re, d._meta) && !countIn(re, d.name)) rows.push(["Authors", markHtml(d.authors || d.refs || d.doi, re), false]);
+      const ms = matching(d._mlines, re);
+      if (ms.length) rows.push(["Measures", ms.slice(0, 4).map((l) => snippet(l, re, 70)).join("<br>") + (ms.length > 4 ? `<br><span class="note">+${ms.length - 4} more matching lines</span>` : ""), false]);
+      const s = snippet(d.readme, re, 90); if (s) rows.push(["README", s, false]);
+      const fl = matching(d._lines, re);
+      if (fl.length) rows.push(["Files", fl.slice(0, 3).map((l) => markHtml(l, re)).join("<br>") + (fl.length > 3 ? `<br><span class="note">+${fl.length - 3} more matching patterns</span>` : ""), true]);
+      const tk = matching(d.tasks, re);
+      if (tk.length) rows.push(["Task", tk.slice(0, 8).map((t) => markHtml("task-" + t, re)).join(", "), true]);
+      if (d._tracer && countIn(re, d._tracer)) rows.push(["Tracer", markHtml(d._tracer, re), true]);
+      if (rows.length) hits = `<div class="hits">${rows.map(([s, t, mono]) => `<div class="hit"><span class="src">${s}</span><span class="txt${mono ? " mono" : ""}">${t}</span></div>`).join("")}</div>`;
+    }
+    return `<article class="card">
+      <div class="top"><a class="title" href="https://openneuro.org/datasets/${d.id}" target="_blank" rel="noopener">${markHtml(d.name || "(untitled dataset)", re)}</a>
+        <span class="dsid">${d.id}${d.authors ? " · " + esc(d.authors.length > 120 ? d.authors.slice(0, 120) + "…" : d.authors) : ""}</span></div>
+      <div class="meta"><span><b>${d.nsub}</b> subject${d.nsub === 1 ? "" : "s"}</span>${d.nses ? `<span><b>${d.nses}</b> session labels</span>` : ""}${partsMeta(d)}<span>${d.nfiles.toLocaleString()} files</span>${d.deriv ? "<span>has derivatives</span>" : ""}</div>
+      <div class="tags">${d.mods.map((m) => `<span class="chip" style="--c:${COLOR[m] || "var(--other)"}">${m}</span>`).join("")}${tracers.map((t) => `<span class="tag tracer">${esc(t)}</span>`).join("")}${d.tasks.slice(0, 6).map((t) => `<span class="tag">task-${esc(t)}</span>`).join("")}${d.tasks.length > 6 ? `<span class="tag">+${d.tasks.length - 6} tasks</span>` : ""}</div>
+      ${hits}
+      <details data-id="${d.id}"><summary>Participants, measures, README and files</summary><div class="detail"></div></details>
+    </article>`;
+  }
+
+  function fillDetail(el) {
+    const d = DATA.find((x) => x.id === el.dataset.id), box = el.querySelector(".detail");
+    if (!d || box.dataset.done) return; box.dataset.done = "1";
+    const re = parse($("q").value.trim()).all, mk = (s) => markHtml(s, re), P = d.participants || {};
+    box.innerHTML = [
+      d.doi && `<div><h4>DOI</h4>${esc(d.doi)}</div>`,
+      d.tracer && `<div><h4>PET sidecar</h4><code>${esc(d.tracer)}</code></div>`,
+      P.cols && `<div><h4>participants.tsv (${P.n || 0} rows, ${P.cols.length} columns)</h4><code>${mk(P.cols.join("  "))}</code></div>`,
+      d.pheno && d.pheno.length && `<div><h4>Phenotype files</h4><code>${d.pheno.map((f) => mk(f.file) + ` (${f.ncol} cols)`).join(", ")}</code></div>`,
+      d.measures && `<div><h4>Variables and descriptions</h4><pre>${mk(d.measures)}</pre></div>`,
+      d.tasks.length && `<div><h4>Tasks (${d.tasks.length})</h4>${d.tasks.map((t) => mk("task-" + t)).join(", ")}</div>`,
+      `<div><h4>README</h4><pre>${d.readme ? mk(d.readme) : "No README in the repository."}</pre></div>`,
+      `<div><h4>File patterns</h4><pre>${mk(d.files)}</pre></div>`,
+    ].filter(Boolean).join("");
+  }
+
+  function render(p) {
+    const n = lastResults.length, filtered = p.inc.length || p.exc.length || modOn.size || $("agemin").value || $("agemax").value || +$("minsub").value;
+    $("count").innerHTML = `<b>${n.toLocaleString()}</b> of ${DATA.length.toLocaleString()} datasets${filtered ? " match" : ""}`;
+    $("results").innerHTML = lastResults.slice(0, shown).map((r) => card(r, p)).join("") ||
+      `<p class="help">No datasets match. Try fewer words, an OR list such as <code>fallypride|raclopride</code>, or fewer filters.</p>`;
+    $("more").hidden = shown >= n;
+    $("more").textContent = `Show ${Math.min(PAGE, n - shown)} more`;
+    document.querySelectorAll("#results details").forEach((el) => el.addEventListener("toggle", () => el.open && fillDetail(el)));
+  }
+
+  function showMeta(meta) {
+    const hi = DATA.reduce((a, d) => (d.id > a ? d.id : a), "");
+    let s = `${DATA.length.toLocaleString()} datasets, through ${hi}.`;
+    const t = meta && meta.built ? new Date(meta.built) : null;
+    if (t && !isNaN(t)) {
+      s = `Last updated ${t.toLocaleDateString(undefined, {day: "numeric", month: "long", year: "numeric"})}: ${s}`;
+      if (meta.added > 0 && meta.added < DATA.length) s += ` ${meta.added} added since the previous update.`;
+    }
+    $("snap").textContent = s;
+  }
+
+  function init(data, meta) {
+    DATA = data.map((d) => Object.assign(d, {
+      _meta: [d.id, d.name, d.authors, d.doi, d.refs].join(" \n "),
+      _files: d.files + "\n" + d.tasks.map((t) => "task-" + t).join("\n"),
+      _lines: d.files.split("\n"),
+      _mlines: (d.measures || "").split("\n").filter(Boolean),
+      _tracer: [d.tracer, d.trc.join(" ")].filter(Boolean).join(" ; "),
+    }));
+    const counts = Object.fromEntries(MODS.map(([m]) => [m, DATA.filter((d) => d.mods.includes(m)).length]));
+    $("mods").innerHTML = MODS.filter(([m]) => counts[m]).map(([m, c]) => `<button type="button" class="mod" style="--c:var(--${c})" aria-pressed="false" data-m="${m}">${m}<span class="n">${counts[m]}</span></button>`).join("");
+    $("mods").addEventListener("click", (e) => { const b = e.target.closest(".mod"); if (!b) return; const m = b.dataset.m; modOn.has(m) ? modOn.delete(m) : modOn.add(m); b.setAttribute("aria-pressed", modOn.has(m)); run(); });
+    showMeta(meta);
+    run();
+  }
+
+  let timer; const later = () => { clearTimeout(timer); timer = setTimeout(run, 220); };
+  $("form").addEventListener("submit", (e) => { e.preventDefault(); run(); });
+  $("q").addEventListener("input", later);
+  ["minsub", "agemin", "agemax"].forEach((id) => $(id).addEventListener("input", later));
+  $("sort").addEventListener("change", run);
+  $("clear").addEventListener("click", () => {
+    $("q").value = ""; $("agemin").value = ""; $("agemax").value = ""; $("minsub").value = 0; modOn.clear();
+    document.querySelectorAll(".mod").forEach((b) => b.setAttribute("aria-pressed", "false")); run(); $("q").focus();
+  });
+  document.querySelectorAll(".ex").forEach((b) => b.addEventListener("click", () => { $("q").value = b.textContent; run(); }));
+  $("more").addEventListener("click", () => { shown += PAGE; render(parse($("q").value.trim())); });
+  $("copy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(lastResults.map((r) => r.d.id).join("\n")); $("status").textContent = `Copied ${lastResults.length} IDs.`; }
+    catch (e) { $("status").textContent = "Your browser blocked copying. Select the IDs from the results instead."; }
+  });
+
+  const getMeta = fetch("meta.json", {cache: "no-cache"}).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  fetch("datasets.json", {cache: "no-cache"}).then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then((data) => getMeta.then((meta) => init(data, meta)))
+    .catch((e) => { $("count").textContent = "Could not load the dataset index (" + e.message + "). Reload the page to try again."; });
+})();
+</script>
+</body>
+</html>
